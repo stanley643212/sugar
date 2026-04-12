@@ -22,6 +22,7 @@ type
 		function getDecValue(_name: string): extended;
 		function getMyInifile: string;
 		function getNumValue(_name: string): Int64;
+		function getraw: string;
 		function getTextValue(_name: string): string;
 		function getTimeValue(_name: string): TDateTime;
 		procedure setBoolValue(_name: string; const _value: boolean);
@@ -29,6 +30,7 @@ type
 		procedure setDateValue(_name: string; const _value: TDateTime);
 		procedure setDecValue(_name: string; const _value: extended);
 		procedure setNumValue(_name: string; const _value: Int64);
+		procedure setRaw(const _value: string);
 		procedure setsection(const _value: string);
 		procedure setTextValue(_name: string; const _value: string);
 		procedure setTimeValue(_name: string; const _value: TDateTime);
@@ -47,6 +49,7 @@ type
         property date    [_name: string]: TDateTime read getDateValue write setDateValue;
         property time    [_name: string]: TDateTime read getTimeValue write setTimeValue;
         property dateTime[_name: string]: TDateTime read getDateTimeValue write setDateTimeValue;
+        property raw: string read getraw write setRaw; // Raw text below the section
 	end;
 
     TSugarIniSectionList = class(specialize TFPGMapObject<string, TSugarIniSection>);
@@ -60,6 +63,7 @@ type
 		function getDateValue(_section: string; _name: string): TDateTime;
 		function getDecValue(_section: string; _name: string): extended;
 		function getNumValue(_section: string; _name: string): Int64;
+		function getraw: string;
 		function getSection(_section: string): TSugarIniSection;
 		function getTextValue(const _section: string; const _name: string): string;
 		function getTimeValue(_section: string; _name: string): TDateTime;
@@ -73,6 +77,7 @@ type
 			const _value: extended);
 		procedure setNumValue(_section: string; _name: string;
 			const _value: Int64);
+		procedure setRaw(const _value: string);
 		procedure setTextValue(const _section: string; const _name: string; const _value: string
 			);
 		procedure setTimeValue(_section: string; _name: string;
@@ -88,6 +93,7 @@ type
         property time    [_section: string; _name: string]: TDateTime read getTimeValue write setTimeValue;
         property dateTime[_section: string; _name: string]: TDateTime read getDateTimeValue write setDateTimeValue;
         property section[_section: string]:TSugarIniSection read getSection;
+        property raw: string read getraw write setRaw; // Raw text below the section
 
 	end;
 
@@ -121,6 +127,11 @@ end;
 function TSugarIniFile.getNumValue(_section: string; _name: string): Int64;
 begin
     Result := ReadInt64(_section, _name, 0);
+end;
+
+function TSugarIniFile.getraw: string;
+begin
+
 end;
 
 function TSugarIniFile.getSection(_section: string): TSugarIniSection;
@@ -167,6 +178,11 @@ procedure TSugarIniFile.setNumValue(_section: string; _name: string;
 	const _value: Int64);
 begin
     WriteInt64(_section, _name, _value);
+end;
+
+procedure TSugarIniFile.setRaw(const _value: string);
+begin
+
 end;
 
 procedure TSugarIniFile.setTextValue(const _section: string; const _name: string;
@@ -221,6 +237,11 @@ begin
     Result := mySugarIniFile.num[section, _name];
 end;
 
+function TSugarIniSection.getraw: string;
+begin
+
+end;
+
 function TSugarIniSection.getTextValue(_name: string): string;
 begin
     Result := mySugarIniFile.text[section, _name];
@@ -255,6 +276,11 @@ end;
 procedure TSugarIniSection.setNumValue(_name: string; const _value: Int64);
 begin
     mySugarIniFile.Num[section, _name] := _value;
+end;
+
+procedure TSugarIniSection.setRaw(const _value: string);
+begin
+
 end;
 
 procedure TSugarIniSection.setsection(const _value: string);

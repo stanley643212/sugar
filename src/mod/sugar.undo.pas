@@ -31,7 +31,7 @@ type
         myHistory : array[0..MAXUNDO] of RHistoryItem; // list of history values
 	    myHistHead: integer; // position to the latest value
 	    myHistCurr: integer; // position of the current pointer that changed during undo/redo
-        myDebounce:  QWord;   // debounce duration. if 0, no debounce.
+        myDebounce:  QWord;  // debounce duration. if 0, no debounce.
         myLastTickCount: QWord;
 	    function posToIndex (_step: integer): integer; // Maps the current position to the index array
 		procedure SetDebounce(const _value: QWord);

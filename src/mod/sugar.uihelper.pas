@@ -274,6 +274,13 @@ type
      This is most efficiet if it is called once per row, (not for every column)}
     function gridRowTextWarp(constref sg: TStringGrid; const aCol, aRow: integer; _padding: integer = 12): integer; // returns the row height that was set;
 
+    {FROM: https://forum.lazarus.freepascal.org/index.php?topic=50167.0}
+    function lighten(AColorA: TColor; APercent: Int16): TColor;
+    function combineColors(AColorA, AColorB: TColor; APercent: UInt16): TColor;
+    procedure combineImages(AImageA, AImageB, AImageDest: TPortableNetworkGraphic; ALevel, AScale: UInt8);
+
+
+
 
 implementation
 uses
@@ -473,8 +480,8 @@ begin
     myUseOnHoverFont := false;
 
     assignPrevEventHandlers(_control);
-
-
+    myDefaultFont.Assign(_control.Font);
+    myOnHoverFont.Assign(_control.Font);
 
     _control.FPOAttachObserver(self);
 end;
@@ -1534,6 +1541,76 @@ begin
     sg.Canvas.TextStyle := _textStyle;
     Result := _padding + calcTextHeight(sg.Canvas,  _celltext, sg.ColWidths[ACol]);
     sg.RowHeights[aRow] := Result;
+end;
+
+function lighten(AColorA: TColor; APercent: Int16): TColor;
+var
+  ColorA, ColorDest: TRGBTriple;
+begin
+    try
+	    RedGreenBlue(AColorA, ColorA.rgbtRed, ColorA.rgbtGreen, ColorA.rgbtBlue);
+	    ColorDest.rgbtRed   := Max(0, Min(255, Round(ColorA.rgbtRed   + ColorA.rgbtRed   * 0.001 * APercent)));
+	    ColorDest.rgbtGreen := Max(0, Min(255, Round(ColorA.rgbtGreen + ColorA.rgbtGreen * 0.001 * APercent)));
+	    ColorDest.rgbtBlue  := Max(0, Min(255, Round(ColorA.rgbtBlue  + ColorA.rgbtBlue  * 0.001 * APercent)));
+	    Result := RGBToColor(ColorDest.rgbtRed, ColorDest.rgbtGreen, ColorDest.rgbtBlue);
+
+	except
+        Result := clDefault;
+	end;
+end;
+
+
+function CombineColors(AColorA, AColorB: TColor; APercent: UInt16): TColor;
+var
+  ColorA, ColorB, ColorDest: TRGBTriple;
+begin
+  RedGreenBlue(AColorA, ColorA.rgbtRed, ColorA.rgbtGreen, ColorA.rgbtBlue);
+  RedGreenBlue(AColorB, ColorB.rgbtRed, ColorB.rgbtGreen, ColorB.rgbtBlue);
+
+  ColorDest.rgbtRed   := Max(0, Min(255, Round(ColorA.rgbtRed   + (ColorB.rgbtRed - ColorA.rgbtRed)     * 0.001 * APercent)));
+  ColorDest.rgbtGreen := Max(0, Min(255, Round(ColorA.rgbtGreen + (ColorB.rgbtGreen - ColorA.rgbtGreen) * 0.001 * APercent)));
+  ColorDest.rgbtBlue  := Max(0, Min(255, Round(ColorA.rgbtBlue  + (ColorB.rgbtBlue - ColorA.rgbtBlue)   * 0.001 * APercent)));
+
+  Result := RGBToColor(ColorDest.rgbtRed, ColorDest.rgbtGreen, ColorDest.rgbtBlue);
+end;
+
+
+
+procedure combineImages(AImageA, AImageB, AImageDest: TPortableNetworkGraphic; ALevel, AScale: UInt8);
+type
+  PPNGPixel = ^TPNGPixel;
+  TPNGPixel = record B, G, R, A: UInt8; end;
+type
+  PPNGLine = ^TPNGLine;
+  TPNGLine = array [UInt16] of TPNGPixel;
+var
+  LineA, LineB, LineDest: PPNGLine;
+  PixelA, PixelB, PixelDest: PPNGPixel;
+var
+  LineIndex, PixelIndex: Integer;
+begin
+  AImageDest.BeginUpdate();
+  try
+    for LineIndex := 0 to AImageA.Height - 1 do
+    begin
+      LineA := AImageA.ScanLine[LineIndex];
+      LineB := AImageB.ScanLine[LineIndex];
+      LineDest := AImageDest.ScanLine[LineIndex];
+
+      for PixelIndex := 0 to AImageA.Width - 1 do
+      begin
+        PixelA := @LineA^[PixelIndex];
+        PixelB := @LineB^[PixelIndex];
+        PixelDest := @LineDest^[PixelIndex];
+
+        PixelDest^.R := Round(PixelA^.R + (PixelB^.R - PixelA^.R) / AScale * ALevel);
+        PixelDest^.G := Round(PixelA^.G + (PixelB^.G - PixelA^.G) / AScale * ALevel);
+        PixelDest^.B := Round(PixelA^.B + (PixelB^.B - PixelA^.B) / AScale * ALevel);
+      end;
+    end;
+  finally
+    AImageDest.EndUpdate();
+  end;
 end;
 
 initialization

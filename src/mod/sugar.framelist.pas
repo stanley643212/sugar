@@ -88,9 +88,7 @@ type
         destructor Destroy; override;
     end;
 
-
     TStringMap = class(specialize TFPGMap<string, string>);
-
 
 var
     myFrameDescriptions : TStringMap;

@@ -225,7 +225,7 @@ type
         function getEnumField(_name: string): DField;
         function getCreateIndexCmd(var _index_name: string;
             const _template: string; const _fields: array of string;
-            const _unique: string = ''; const _collation: TIndexCollation = icNone): string;
+            const _unique: string = ''; const _collation: TIndexCollation = icNone;  _order: string = ''): string;
         function getSQLFor(qb: RbQueryBuilderBase): string;
         procedure setEnableJournal(const _EnableJournal: boolean);
         procedure setDraftEditsEnabled(const _DraftEditsOn: boolean);
@@ -304,9 +304,9 @@ type
             virtual; overload;
 
         function btIndex(_fields: array of DField; _indexType: DIndexType = idxNormal;
-            _name: string = ''; _collation: TIndexCollation = icNone): DTable; virtual; overload;
+            _name: string = ''; _collation: TIndexCollation = icNone; _order: string = ''): DTable; virtual; overload;
         function btIndex(_fields: array of string; _indexType: DIndexType = idxNormal;
-            _name: string = ''; _collation: TIndexCollation = icNone): DTable; virtual; overload;
+            _name: string = ''; _collation: TIndexCollation = icNone; _order: string = ''): DTable; virtual; overload;
 
         {Inserts a FK reference}
         function Lookup(_table: DTable; _localFieldName: string = ''): DField; virtual;
@@ -384,9 +384,9 @@ type
             override; overload;
 
         function btIndex(_fields: array of DField; _indexType: DIndexType = idxNormal;
-            _name: string = ''; _collation: TIndexCollation = icNone): DTable; override; overload;
+            _name: string = ''; _collation: TIndexCollation = icNone;  _order: string = ''): DTable; override; overload;
         function btIndex(_fields: array of string; _indexType: DIndexType = idxNormal;
-            _name: string = ''; _collation: TIndexCollation = icNone): DTable; override; overload;
+            _name: string = ''; _collation: TIndexCollation = icNone;  _order: string = ''): DTable; override; overload;
 
         {Creates a addNew table that fulfills many-to-one relationship with this table}
         function addMany(_name: string): DTable; override; overload;
@@ -531,7 +531,9 @@ type
 
         function hashedIndex(_name: string = ''): DField; virtual;
         function btIndex(_indexType: DIndexType = idxNormal;
-            _name: string = ''; _collation: TIndexCollation=icNone): DField; virtual;
+            _name: string = ''; _collation: TIndexCollation=icNone; _order: string = ''): DField; virtual;
+        function btIndexDesc(_indexType: DIndexType = idxNormal;
+            _name: string = ''; _collation: TIndexCollation=icNone; _order: string = 'DESC'): DField; virtual;
 
         constructor Create(_name: string); override;
         destructor Destroy; override;
@@ -775,7 +777,7 @@ begin
 end;
 
 function DView.btIndex(_fields: array of DField; _indexType: DIndexType;
-    _name: string; _collation: TIndexCollation = icNone): DTable;
+    _name: string; _collation: TIndexCollation = icNone;  _order: string = ''): DTable;
 begin
     Result := self;
     raise Exception.Create('btIndex: Not allowed in an SQL view');
@@ -783,7 +785,7 @@ begin
 end;
 
 function DView.btIndex(_fields: array of string; _indexType: DIndexType;
-    _name: string; _collation: TIndexCollation = icNone): DTable;
+    _name: string; _collation: TIndexCollation = icNone;  _order: string = ''): DTable;
 begin
     Result := self;
     raise Exception.Create('btIndex: Not allowed in an SQL view');
@@ -1514,7 +1516,6 @@ function DTable.FullName: string;
 var
     s: string = '';
 begin
-
     if TARGETDB in SCHEMA_SUPPORTED_DB then
     begin
         if Assigned(schema) then
@@ -1813,9 +1814,9 @@ begin
 end;
 
 function DTable.getCreateIndexCmd(var _index_name: string;
-    const _template: string; const _fields: array of string;
-    const _unique: string = '';
-    const _collation: TIndexCollation = icNone): string;
+	const _template: string; const _fields: array of string;
+	const _unique: string; const _collation: TIndexCollation; _order: string
+	): string;
 var
     _tmp_index_name: string = '';
     _index_fields: string = '';
@@ -1858,7 +1859,7 @@ begin
     if _index_name.IsEmpty then
         _index_name := Format('idx_%s_%s', [{table} Self.Name, _tmp_index_name]);
 
-    Result := Format(_template, [_unique, _index_name, Self.FullName, _index_fields]);
+    Result := Format(_template, [_unique, _index_name, Self.FullName, _index_fields, _order]);
 end;
 
 function DTable.hashedIndex(_fields: array of DField; _name: string): DTable;
@@ -1902,7 +1903,7 @@ end;
 
 
 function DTable.btIndex(_fields: array of DField; _indexType: DIndexType;
-	_name: string; _collation: TIndexCollation): DTable;
+	_name: string; _collation: TIndexCollation; _order: string): DTable;
 var
     _str_fields: array of string;
     i: integer;
@@ -1919,18 +1920,18 @@ begin
     begin
         _str_fields[i] := _fields[i].Name;
     end;
-    btIndex(_str_fields, _indexType, _name, _collation);
+    btIndex(_str_fields, _indexType, _name, _collation, _order);
 end;
 
 function DTable.btIndex(_fields: array of string; _indexType: DIndexType;
-	_name: string; _collation: TIndexCollation): DTable;
+	_name: string; _collation: TIndexCollation; _order: string = ''): DTable;
 const
-    idxTemplate = 'CREATE %s INDEX IF NOT EXISTS %s ON %s (%s);';
+    idxTemplate = 'CREATE %s INDEX IF NOT EXISTS %s ON %s (%s %s);';
 var
     _cmd: string = '';
 begin
     Result := Self;
-    _cmd := getCreateIndexCmd(_name, idxTemplate, _fields, _indexType.toString, _collation);
+    _cmd := getCreateIndexCmd(_name, idxTemplate, _fields, _indexType.toString, _collation, _order);
     Schema.Script(_name).add(_cmd);
 end;
 
@@ -2832,10 +2833,16 @@ begin
 end;
 
 function DField.btIndex(_indexType: DIndexType; _name: string;
-	_collation: TIndexCollation): DField;
+	_collation: TIndexCollation; _order: string = ''): DField;
 begin
     Result := Self;
-    Table.btIndex([Self], _indexType, _name, _collation);
+    Table.btIndex([Self], _indexType, _name, _collation, _order);
+end;
+
+function DField.btIndexDesc(_indexType: DIndexType; _name: string;
+	_collation: TIndexCollation; _order: string): DField;
+begin
+    Result := btIndex(_indexType, _name, _collation, _order);
 end;
 
 function DField.IsNull: boolean;

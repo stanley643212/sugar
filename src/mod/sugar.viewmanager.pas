@@ -8,6 +8,7 @@ uses
     Classes, SysUtils, Forms, Controls, ExtCtrls, fgl, generics.Collections;
 
 type
+    NViewAlias = string;
 
     // IMPORTANT: To disable reference counting
     //-------------------------------------------------------------
@@ -22,7 +23,7 @@ type
     // In embed(), they must take care of the housekeeping.
     //      - Forms can decide which of its child controls
     //        should be inserted as a control in the _container
-    //
+
     IEmbeddableView = interface
         function viewKind: byte;                            // Return the ord value of the enum NViewKind
         procedure embed(constref _container: TWinControl);  // Implement how the embedding happens.
@@ -30,12 +31,14 @@ type
         function canRemove: boolean;                        // help container decide when it is safe to remove the view
         procedure remove;                                   // remove all controls from the container that were inserted in embed()
         function destruct: boolean;                         // Cleanup and call the destructor.
+
+        procedure setAlias(_nviewAlias: NViewAlias);
+        function alias: NViewAlias;
     end;
 
     PEmbeddableView = ^IEmbeddableView;
     EEmbeddableException = class(Exception); // Raise this exception when you need to inform the host about errors during embedding or removing
 
-type
     TFrameclass  = class of TFrame;
     TViewFactory = function: IEmbeddableView;
 
@@ -58,7 +61,6 @@ type
     end;
 
     PViewReference = ^TViewReference;
-    NViewAlias = string;
 
     TViewReferenceList = class(specialize TFPGList<PViewReference>);
 
@@ -105,7 +107,7 @@ procedure registerView(const _nview: NViewAlias; constref _view: TFrameClass;
 procedure registerView(const _nview: NViewAlias; constref _view: TFormClass;
     constref _factory: TViewFactory); overload;
 
-function getView(const _nview: NViewAlias): IEmbeddableView; overload;
+function getView(const _nviewAlias: NViewAlias; _singleton: boolean = True): IEmbeddableView; overload;
 
 function isEmbeddableView(const _form: TForm)  : boolean; overload;
 function isEmbeddableView(const _frame: TFrame): boolean; overload;
@@ -135,10 +137,12 @@ begin
     viewRegistry.registerView(_nView, _view, _factory);
 end;
 
-function getView(const _nview: NViewAlias): IEmbeddableView;
+function getView(const _nviewAlias: NViewAlias; _singleton: boolean
+	): IEmbeddableView;
 begin
-    Result := viewRegistry.getView(_nview);
+    Result := viewRegistry.getView(_nviewAlias, _singleton);
 end;
+
 
 function isEmbeddableView(const _form: TForm): boolean;
 begin
@@ -307,6 +311,9 @@ begin
             end;
             False: Result := myViewByAlias.Items[_nView]^.factory();
         end;
+
+        if assigned(Result) then
+            Result.setAlias(_nview);
 
     finally
         LeaveCriticalSection(myCriticalSection);

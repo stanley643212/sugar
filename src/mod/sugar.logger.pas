@@ -231,7 +231,7 @@ var
     _openAttempt: word = 1;
 	s: String;
 begin
-    //EnterCriticalSection(myLoggerCS);
+    EnterCriticalSection(myLoggerCS);
     try
         repeat
             {$I-}
@@ -285,9 +285,7 @@ begin
             sleep(10);
 		end;
 	end;
-    //LeaveCriticalSection(myLoggerCS);
-
-
+    LeaveCriticalSection(myLoggerCS);
 end;
 
 function TLogger.fileName: string;

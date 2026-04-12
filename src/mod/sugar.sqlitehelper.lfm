@@ -2,8 +2,8 @@ object SQLiteDBModule: TSQLiteDBModule
   OnCreate = DataModuleCreate
   OldCreateOrder = False
   Height = 407
-  HorizontalOffset = 363
-  VerticalOffset = 351
+  HorizontalOffset = 1609
+  VerticalOffset = -889
   Width = 576
   object libloader: TSQLDBLibraryLoader
     Enabled = False

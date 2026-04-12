@@ -29,7 +29,7 @@ const
 
     {FLAGS to denote SQL search status etc}
     ID_NOT_ASSIGNED = MIN_SQLITE_BIG_INT;
-    ID_NOT_FOUND = MIN_SQLITE_BIG_INT + 1;
+    ID_NOT_FOUND    = MIN_SQLITE_BIG_INT + 1;
 
 type
 
@@ -77,6 +77,7 @@ type
         procedure setuseSequences(const _useSequences: boolean);
     public
         constructor Create; overload;// So that we can use this with hash lists;
+        destructor Destroy; override;
 
         {Creates the db file if it doesn't exist}
         function getSQLite3LibraryPath(): string;
@@ -116,6 +117,8 @@ type
         function endTransaction: boolean;
         function newQuery: TSQLQuery; overload;
         function newQuery(_sql: string): TSQLQuery; overload;
+        function newScript(const _terminator : char = ';'): TSQLScript; overload;
+        function newScript(_sql: string; const _terminator : char = ';'): TSQLScript; overload;
 
         {Returns pointer to DB, sets it to active if not already}
         function DbActive: TSQLConnection;
@@ -139,14 +142,10 @@ type
         {Update a value in a table}
         function qPut(_tbl: string; _id: int64; _fld: string;
             _idFieldName: string = 'rid'): TSQLQuery;
-        function put(_tbl: string; _id: int64; _fld: string; _value: string): boolean;
-            overload;
-        function put(_tbl: string; _id: int64; _fld: string; _value: int64): boolean;
-            overload;
-        function put(_tbl: string; _id: int64; _fld: string; _value: boolean): boolean;
-            overload;
-        function put(_tbl: string; _id: int64; _fld: string; _value: double): boolean;
-            overload;
+        function put(_tbl: string; _id: int64; _fld: string; _value: string): boolean; overload;
+        function put(_tbl: string; _id: int64; _fld: string; _value: int64): boolean; overload;
+        function put(_tbl: string; _id: int64; _fld: string; _value: boolean): boolean; overload;
+        function put(_tbl: string; _id: int64; _fld: string; _value: double): boolean; overload;
         {Send multiple values as a json object. Parses the object, updates the table}
         function put(_tbl: string; _id: int64; _json: TJSONObject): boolean; overload;
 
@@ -269,7 +268,8 @@ type
 function sqliteDB(const _dbFile: string = DEFAULT_DB_FILE;
     const _dbFolder: string = '';
     constref _initScriptFunc: TScriptFunc = nil;
-    constref _upgradeScriptFunc: TScriptFunc = nil): TSQLiteDBModule;
+    constref _upgradeScriptFunc: TScriptFunc = nil;
+    const _openState: TDBOpenState = dbopenExclusive): TSQLiteDBModule;
 
 function sqliteMemDB(const _dbfile: string; // alias
     constref _initScriptFunc: TScriptFunc = nil;
@@ -319,21 +319,20 @@ begin
     Result.upgradeScript := _upgradeScriptFunc;
 end;
 
-function sqliteDB(const _dbFile: string; const _dbFolder: string;
-    constref _initScriptFunc: TScriptFunc;
-    constref _upgradeScriptFunc: TScriptFunc): TSQLiteDBModule;
+function sqliteDB(const _dbFile: string; const _dbFolder: string; constref
+	_initScriptFunc: TScriptFunc; constref _upgradeScriptFunc: TScriptFunc;
+	const _openState: TDBOpenState): TSQLiteDBModule;
 begin
     Result := myDBModules.find(_dbFile);
     if not Assigned(Result) then
     begin
         Result := newSqliteDB(_dbFile, _dbFolder, _initScriptFunc, _upgradeScriptFunc);
-        Result.initDB;
+        Result.initDB(_openState);
         myDBModules.add(_dbfile, Result);
     end;
 
     if Result.openMode < dbopenReadOnly then
-        raise Exception.Create(
-            'It looks like Database "%s" could not be opened. Please check ');
+        raise Exception.Create('It looks like Database "%s" could not be opened. Please check ');
 
 end;
 
@@ -562,7 +561,7 @@ begin
     Result := dm.execSQL(getTableCreateScript(_tbl));
     case Result of
         -1, 0: tbl := '';
-        1: tbl := _tbl;
+        1    : tbl := _tbl;
     end;
 end;
 
@@ -911,6 +910,19 @@ begin
     Create(nil);
 end;
 
+destructor TSQLiteDBModule.Destroy;
+begin
+    if isTransactionActive then begin
+        try
+            commit;
+		except
+            rollback;
+		end;
+		endTransaction;
+	end;
+	inherited Destroy;
+end;
+
 function TSQLiteDBModule.initDB(_openState: TDBOpenState): boolean;
 var
     _DBInitScript: string;
@@ -958,6 +970,9 @@ var
             {Write Ahead //Log}
             myDB.ExecuteDirect('PRAGMA journal_mode = ''WAL'';');
 
+           {Busy timeout}
+            myDB.ExecuteDirect('PRAGMA busy_timeout = 5000;');
+
             {Lazarus workaround for executing PRAGMA. Done.}
             myDB.ExecuteDirect('BEGIN TRANSACTION;');
             endTransaction;
@@ -985,6 +1000,9 @@ var
 
             {Write Ahead //Log}
             myDB.ExecuteDirect('PRAGMA journal_mode = ''WAL'';');
+
+            {Busy timeout}
+            myDB.ExecuteDirect('PRAGMA busy_timeout = 5000;');
 
 
             {Lazarus workaround for executing PRAGMA. Done.}
@@ -1059,11 +1077,11 @@ begin
         end;
 
         case myDbOpenState of
-            dbopenForbidden: ;
-            dbopenLocked: ;
-            dbopenReadOnly: openReadOnly;
-            dbopenShared: openShared;
-            dbopenExclusive: openExclusive;
+            dbopenForbidden : ;
+            dbopenLocked    : ;
+            dbopenReadOnly  : openReadOnly;
+            dbopenShared    : openShared;
+            dbopenExclusive : openExclusive;
         end;
     end;
 end;
@@ -1161,6 +1179,7 @@ begin
         Result := False;
         exit;
     end;
+    saveFileContent('create.sql', _script);
     scripts := TSQLScript.Create(myDB);
     scripts.DataBase := myDB;
     scripts.Transaction := transaction;
@@ -1301,6 +1320,25 @@ begin
     Result := newQuery();
     Result.SQL.Text := _sql;
 end;
+
+function TSQLiteDBModule.newScript(const _terminator: char): TSQLScript;
+begin
+    Result := TSQLScript.Create(myDB);
+    Result.DataBase := TSQLConnection(myDB);
+    Result.Transaction := transaction;
+    if Result.Terminator = '' then begin
+        Result.Terminator  := _terminator;
+        Result.UseSetTerm  := true;
+	end;
+end;
+
+function TSQLiteDBModule.newScript(_sql: string; const _terminator: char
+	): TSQLScript;
+begin
+    Result := newScript(_terminator);
+    Result.Script.Text:=_sql;
+end;
+
 
 function TSQLiteDBModule.DbActive: TSQLConnection;
 begin
@@ -1531,9 +1569,12 @@ begin
     try
         _qry.params[0].AsString := _value;
         try
+            safeStartTransaction;
             _qry.ExecSQL;
             Result := True;
+            commitRetaining;
         except
+            rollbackRetaining;
             Result := False;
         end;
     finally
@@ -1550,9 +1591,12 @@ begin
     try
         _qry.params[0].AsLargeInt := _value;
         try
+            safeStartTransaction;
             _qry.ExecSQL;
             Result := True;
+            commitRetaining;
         except
+            rollbackRetaining;
             Result := False;
         end;
     finally
@@ -1569,9 +1613,12 @@ begin
     try
         _qry.params[0].AsBoolean := _value;
         try
+            safeStartTransaction;
             _qry.ExecSQL;
             Result := True;
+            commitRetaining;
         except
+            rollbackRetaining;
             Result := False;
         end;
     finally
@@ -1588,9 +1635,12 @@ begin
     try
         _qry.params[0].AsFloat := _value;
         try
+            safeStartTransaction;
             _qry.ExecSQL;
             Result := True;
+            commitRetaining;
         except
+            rollbackRetaining;
             Result := False;
         end;
     finally
@@ -1600,6 +1650,7 @@ end;
 
 function TSQLiteDBModule.put(_tbl: string; _id: int64; _json: TJSONObject): boolean;
 begin
+    trip('Not implemented');
     Result := False;
 end;
 
@@ -1618,9 +1669,12 @@ var
 begin
     _qry := qDeletE(_tbl, _id);
     try
+        safeStartTransaction;
         _qry.ExecSQL;
         Result := True;
+        commitRetaining;
     except
+        rollbackRetaining;
         Result := False;
     end;
 end;

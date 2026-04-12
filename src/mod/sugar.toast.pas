@@ -42,11 +42,14 @@ type
         procedure toast(_frameClass: TCustomFrameClass; _fadeTime: word = 1000);
     end;
 
-    procedure toast(const _msg: string; _fadeTime: word = 1000; _size: TToastSize = toastSmall);
-    procedure toast(_frameClass: TCustomFrameClass; _fadeTime: word = 1000; _size: TToastSize = toastSmall);
+    procedure toast(const _msg: string; _size : TToastSize = toastSmall; _fadeTime: word = 1000);
+    procedure toast(_frameClass: TCustomFrameClass; _size: TToastSize = toastSmall; _fadeTime: word = 1000);
 
     function setToastPos(_t: TFormToast; _size: TToastSize): TFormToast;
 
+    procedure initSysNotifications(const _title: string);
+    procedure sysNotify(const _flag: TBalloonFlags; const _title: string;
+        const _message: string; const _timeout: Word = 2000);
 
 
 implementation
@@ -56,8 +59,10 @@ implementation
 uses
     Math;
 
+var
+    trayIcon : TTrayIcon = nil;
 
-procedure toast(const _msg: string; _fadeTime: word; _size: TToastSize);
+procedure toast(const _msg: string; _size: TToastSize; _fadeTime: word);
 var
 	_t: TFormToast;
 	_curr: TForm;
@@ -68,8 +73,7 @@ begin
     _curr.SetFocus;
 end;
 
-procedure toast(_frameClass: TCustomFrameClass; _fadeTime: word;
-	_size: TToastSize);
+procedure toast(_frameClass: TCustomFrameClass; _size: TToastSize; _fadeTime: word);
 var
 	_t: TFormToast;
 	_curr: TForm;
@@ -80,7 +84,6 @@ begin
     _curr.SetFocus;
 end;
 
-
 function setToastPos(_t: TFormToast; _size: TToastSize): TFormToast;
 var
 	_f: TForm;
@@ -89,6 +92,31 @@ begin
     Result := _t;
     _t.left := _f.Width  - _t.Width ;
     _t.top  := _f.height - _t.Height - 60;
+end;
+
+
+procedure initSysNotifications(const _title: string);
+begin
+    if not assigned(trayIcon) then
+        trayIcon := TTrayIcon.Create(Application);
+
+    trayIcon.Hint := _title;
+    trayIcon.Icon := Application.Icon;
+    trayIcon.Show;
+end;
+
+procedure sysNotify(const _flag: TBalloonFlags; const _title: string; const _message: string;
+	const _timeout: Word);
+begin
+    if not assigned(trayIcon) then begin
+        initSysNotifications(Application.Title)
+	end;
+
+    trayIcon.BalloonFlags:= _flag;
+    trayIcon.BalloonTitle:= _title;
+    trayIcon.BalloonHint := _message;
+    trayIcon.BalloonTimeout := _timeout;
+    trayIcon.ShowBalloonHint;
 end;
 
 { TFormToast }
