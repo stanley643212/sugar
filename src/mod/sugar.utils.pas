@@ -253,6 +253,8 @@ function genFileETag(const _path: string): string;
 
 function SecureEquals(const A, B: RawByteString): Boolean; inline;
 
+function IsValidIPv4(const S: string): boolean;
+
 implementation
 uses
      URIParser,
@@ -1824,6 +1826,50 @@ begin
   for i := 1 to Length(A) do
     diff := diff or (Byte(A[i]) xor Byte(B[i]));
   Result := diff = 0;
+end;
+
+function IsValidIPv4(const S: string): boolean;
+var
+    Parts: TStringList;
+    I, N: integer;
+    Part: string;
+begin
+    Result := False;
+
+    Parts := TStringList.Create;
+    try
+        Parts.StrictDelimiter := True;
+        Parts.Delimiter := '.';
+        Parts.DelimitedText := S;
+
+        if Parts.Count <> 4 then
+            Exit;
+
+        for I := 0 to 3 do
+        begin
+            Part := Parts[I];
+
+            // Empty segment not allowed
+            if Part = '' then
+                Exit;
+
+            // Only decimal integer allowed
+            if not TryStrToInt(Part, N) then
+                Exit;
+
+            // Must be in IPv4 octet range
+            if (N < 0) or (N > 255) then
+                Exit;
+
+            // Optional: reject leading zeros like 001
+            if (Length(Part) > 1) and (Part[1] = '0') then
+                Exit;
+        end;
+
+        Result := True;
+    finally
+        Parts.Free;
+    end;
 end;
 
 
